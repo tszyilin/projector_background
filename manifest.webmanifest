@@ -1,7 +1,7 @@
 {
-  "name": "夜燈氛圍光",
-  "short_name": "夜燈",
-  "description": "投影機用的氛圍夜燈：星空、壁爐、星空營火。",
+  "name": "Ambient Night Light",
+  "short_name": "Night Light",
+  "description": "A projector night light: starfield, fireplace and campfire, with optional music reactivity.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "fullscreen",

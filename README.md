@@ -1,29 +1,59 @@
-# 夜燈氛圍光
+# Ambient Night Light
 
-投影機用的氛圍夜燈網頁：星空、壁爐、星空營火三種模式，亮度與速度可調，可設定 30/60/90 分鐘後自動變暗。沒有任何聲音，所以可以一邊用 Spotify 放音樂。
+A silent ambience page for a projector: starfield, fireplace and campfire modes, with adjustable brightness and speed, plus a 30/60/90 minute sleep timer that fades the screen to black. It makes no sound of its own, so you can play music over it.
 
-## 部署到 GitHub Pages
+**Live:** https://tszyilin.github.io/projector_background/
 
-1. 在 GitHub 建一個新的 repository，名稱隨意，設為 Public。
-2. 把這個資料夾裡的所有檔案上傳到 repository 根目錄（Add file → Upload files，整批拖進去）。
-3. 進 Settings → Pages，Source 選 **Deploy from a branch**，branch 選 **main**、資料夾選 **/ (root)**，按 Save。
-4. 等一兩分鐘，網址會是 `https://<你的帳號>.github.io/<repo 名稱>/`。
+## Modes
 
-## 加到手機主畫面（全螢幕的關鍵）
+Nine palettes, three of which add animation on top of the drifting colour wash:
 
-- **iPhone**：用 Safari 開上面的網址 → 分享 → 加入主畫面。從主畫面圖示打開就沒有網址列。
-- **Android**：用 Chrome 開 → 選單 → 安裝應用程式／加到主畫面。
-
-## 檔案說明
-
-| 檔案 | 用途 |
+| Palette | What you get |
 | --- | --- |
-| `index.html` | 網頁本體，所有程式和樣式都在裡面 |
-| `manifest.webmanifest` | 讓它能以 App 形式安裝、預設橫向全螢幕 |
-| `sw.js` | 離線快取，裝好之後沒網路也能開 |
-| `icon-192.png` / `icon-512.png` | 主畫面圖示 |
-| `.nojekyll` | 讓 GitHub Pages 原樣輸出檔案 |
+| Starfield | Slow twinkle plus the occasional shooting star |
+| Fireplace | A full-width bed of embers with soft, swaying flames |
+| Campfire Sky | Both at once — stars above, a compact fire below |
+| Amber, Deep Sea, Aurora, Lavender, Sunset, Forest | Drifting colour only |
 
-## 改版後要注意
+## Music reactivity
 
-改了 `index.html` 之後，把 `sw.js` 第一行的 `ambient-v1` 改成 `ambient-v2`（每次改都換個號碼），否則已經安裝的裝置會繼續用舊的快取版本。
+Tap **Music** in the settings panel — the toggle right next to Fullscreen and Timer — and the whole scene breathes with whatever is playing in the room. It is off until you switch it on, and tapping again switches it back off.
+
+**Every mode reacts**, because the hook sits on the colour wash that all nine palettes share: the drifting blobs swell and brighten on the bass. The three animated modes add their own response on top — flames grow and throw extra embers in Fireplace, stars shimmer with loudness in Starfield, both in Campfire Sky.
+
+It works by listening through the device microphone, so it reacts to any source: Spotify on a speaker, a phone, a record player. There is no Spotify sign-in, and there cannot be — the Spotify SDK's audio is DRM-protected and cannot be analysed, and Spotify's beat-data API has been closed to new apps since late 2024.
+
+Nothing is recorded and nothing leaves the device: the microphone stream only reaches an `AnalyserNode` that is connected to no output.
+
+Notes:
+
+- Needs HTTPS. The GitHub Pages URL above qualifies; a local `file://` copy does not.
+- On iPhone, a home-screen (standalone) launch needs **iOS 16.4 or newer** for the microphone to work. On older iOS, use it in Safari directly.
+- iOS shows a recording indicator while it listens, and may ask for permission again each time you launch the app. That is the operating system, not this page.
+- The microphone costs battery, which is why it is an explicit toggle and starts off.
+
+## Deploying your own copy
+
+1. Create a new public repository on GitHub.
+2. Upload every file in this folder to the repository root (Add file → Upload files, drag the whole batch in).
+3. Settings → Pages → Source: **Deploy from a branch**, branch **main**, folder **/ (root)**, Save.
+4. After a minute or two the site is at `https://<your-account>.github.io/<repo-name>/`.
+
+## Adding it to a phone home screen (this is what makes it fullscreen)
+
+- **iPhone:** open the URL in Safari → Share → Add to Home Screen. Launched from that icon, there is no address bar.
+- **Android:** open in Chrome → menu → Install app / Add to Home screen.
+
+## Files
+
+| File | Purpose |
+| --- | --- |
+| `index.html` | The whole app — markup, styles and script in one file |
+| `manifest.webmanifest` | Makes it installable, fullscreen and landscape by default |
+| `sw.js` | Offline cache, so it opens with no network once installed |
+| `icon-192.png` / `icon-512.png` | Home-screen icons |
+| `.nojekyll` | Tells GitHub Pages to serve the files as-is |
+
+## After editing
+
+When you change `index.html`, bump `ambient-v2` on the first line of `sw.js` to `ambient-v3` (a new number every time), or devices that already installed it keep serving the cached copy.

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -7,11 +7,11 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="夜燈">
+<meta name="apple-mobile-web-app-title" content="Night Light">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
-<title>夜燈氛圍光</title>
+<title>Ambient Night Light</title>
 <style>
   :root {
     --bg: #000;
@@ -31,7 +31,7 @@
   body {
     background: var(--bg);
     color: var(--text);
-    font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     overflow: hidden;
     cursor: none;
     -webkit-tap-highlight-color: transparent;
@@ -84,12 +84,12 @@
   .swatch[aria-pressed="true"] { outline: 2px solid var(--focus); outline-offset: 2px; }
 
   label { display: flex; align-items: center; gap: 12px; font-size: 0.9rem; margin: 10px 0; }
-  label span { width: 3em; flex: none; color: var(--muted); }
+  label span { width: 5em; flex: none; color: var(--muted); }
   input[type=range] { flex: 1; accent-color: var(--focus); }
 
-  .row { display: flex; gap: 8px; margin-top: 14px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
   .row button {
-    flex: 1; font: inherit; font-size: 0.9rem;
+    flex: 1 1 28%; min-width: 0; font: inherit; font-size: 0.85rem;
     background: rgba(255,255,255,0.08); color: var(--text);
     border: 1px solid var(--line); border-radius: 12px; padding: 10px 6px; cursor: pointer;
   }
@@ -104,30 +104,31 @@
 <div id="stage"></div>
 <canvas id="stars" aria-hidden="true"></canvas>
 <canvas id="fire" aria-hidden="true"></canvas>
-<div id="hint">點一下畫面顯示設定</div>
+<div id="hint">Tap anywhere for settings</div>
 
-<div id="panel" role="dialog" aria-label="氛圍光設定">
+<div id="panel" role="dialog" aria-label="Ambient light settings">
   <div class="swatches" id="swatches"></div>
-  <label><span>亮度</span><input id="bright" type="range" min="10" max="100" value="60"></label>
-  <label><span>速度</span><input id="speed" type="range" min="0.08" max="0.55" step="0.01" value="0.33"></label>
+  <label><span>Bright</span><input id="bright" type="range" min="10" max="100" value="60"></label>
+  <label><span>Speed</span><input id="speed" type="range" min="0.08" max="0.55" step="0.01" value="0.33"></label>
   <div class="row">
-    <button id="fs">全螢幕</button>
-    <button id="timer">定時：關</button>
+    <button id="fs">Fullscreen</button>
+    <button id="timer">Timer: Off</button>
+    <button id="mic">Music: Off</button>
   </div>
   <div id="status"></div>
 </div>
 
 <script>
 const palettes = {
-  "星空":     ["#101a4a", "#1d1252", "#0a2f5c", "#2a1440"],
-  "星空營火": ["#0a1030", "#12163a", "#1d0e2a", "#04050f"],
-  "壁爐":     ["#2a0c02", "#120400", "#3a1204", "#070100"],
-  "琥珀暖光": ["#ff8a3d", "#c2410c", "#ffb347", "#7a2e0e"],
-  "深海":     ["#0e4f7a", "#1b2a6b", "#0a7a8a", "#2b1459"],
-  "極光":     ["#1fae7a", "#2461a8", "#7b3fb8", "#0d5c4f"],
-  "薰衣草":   ["#8a6bd1", "#c77dba", "#4b3a8f", "#e0a3c8"],
-  "日落":     ["#ff6f61", "#b8336a", "#ffa45b", "#5a2a6b"],
-  "森林":     ["#2f7a4a", "#6b8f3a", "#1f4d3d", "#a3b55a"]
+  "Starfield":     ["#101a4a", "#1d1252", "#0a2f5c", "#2a1440"],
+  "Campfire Sky":  ["#0a1030", "#12163a", "#1d0e2a", "#04050f"],
+  "Fireplace":     ["#2a0c02", "#120400", "#3a1204", "#070100"],
+  "Amber":         ["#ff8a3d", "#c2410c", "#ffb347", "#7a2e0e"],
+  "Deep Sea":      ["#0e4f7a", "#1b2a6b", "#0a7a8a", "#2b1459"],
+  "Aurora":        ["#1fae7a", "#2461a8", "#7b3fb8", "#0d5c4f"],
+  "Lavender":      ["#8a6bd1", "#c77dba", "#4b3a8f", "#e0a3c8"],
+  "Sunset":        ["#ff6f61", "#b8336a", "#ffa45b", "#5a2a6b"],
+  "Forest":        ["#2f7a4a", "#6b8f3a", "#1f4d3d", "#a3b55a"]
 };
 const names = Object.keys(palettes);
 const store = {
@@ -173,7 +174,7 @@ function drawStars(dt, campfire) {
   sctx.clearRect(0, 0, innerWidth, innerHeight);
   for (const s of stars) {
     s.tw += dt * 0.0012 * s.sp;
-    let a = 0.35 + Math.sin(s.tw) * 0.35;
+    let a = (0.35 + Math.sin(s.tw) * 0.35) * (1 + audio.level * 0.30);
     if (campfire) a = a * 1.4 * Math.max(0, Math.min(1, (1 - s.y / innerHeight / 0.88)));
     if (a <= 0.01) continue;
     sctx.beginPath();
@@ -237,7 +238,8 @@ function drawFire(dt, compact) {
 
   const bedY = h * 0.98, bedW = w * (compact ? 0.62 : 0.95), bedX = w / 2;
   const bed = bctx.createRadialGradient(bedX, bedY, 0, bedX, bedY, bedW);
-  const pulse = 0.72 + Math.sin(ft * 0.0016) * 0.12 + Math.sin(ft * 0.0071) * 0.06;
+  const pulse = (0.72 + Math.sin(ft * 0.0016) * 0.12 + Math.sin(ft * 0.0071) * 0.06)
+              * (1 + audio.level * 0.22 + audio.kick * 0.18);
   bed.addColorStop(0, `rgba(255, 186, 96, ${(compact ? 0.5 : 0.7) * pulse})`);
   bed.addColorStop(0.3, `rgba(224, 92, 16, ${(compact ? 0.26 : 0.4) * pulse})`);
   bed.addColorStop(1, "rgba(120, 20, 0, 0)");
@@ -245,8 +247,9 @@ function drawFire(dt, compact) {
   bctx.fillRect(0, 0, w, h);
 
   for (const f of flames) {
-    const flick = 0.62 + Math.sin(ft * 0.0035 * f.sp + f.phase) * 0.2
-                       + Math.sin(ft * 0.011 * f.sp + f.phase * 2.3) * 0.16;
+    const flick = (0.62 + Math.sin(ft * 0.0035 * f.sp + f.phase) * 0.2
+                        + Math.sin(ft * 0.011 * f.sp + f.phase * 2.3) * 0.16)
+                * (1 + audio.kick * 0.30);
     const cx = w * (0.04 + f.off * 0.92) + Math.sin(ft * 0.0013 * f.sp + f.phase) * w * 0.015;
     const height = h * (0.10 + flick * 0.14) * f.hf * (compact ? 0.8 : 1);
     const halfW = w * f.w * 0.5 * (0.85 + flick * 0.3);
@@ -292,7 +295,7 @@ function drawFire(dt, compact) {
   fctx.drawImage(fbuf, 0, 0, fbuf.width, fbuf.height, 0, 0, w, h);
   fctx.globalCompositeOperation = "lighter";
 
-  if (embers.length < 60 && Math.random() < dt * 0.02) {
+  if (embers.length < 60 && Math.random() < dt * 0.02 * (1 + audio.kick * 1.6)) {
     embers.push({
       x: w * (0.3 + Math.random() * 0.4), y: bedY - h * 0.05,
       vx: (Math.random() - 0.5) * 0.02, vy: -(0.03 + Math.random() * 0.05),
@@ -321,14 +324,14 @@ names.forEach(n => {
   btn.textContent = n;
   const c = palettes[n];
   const grad = `linear-gradient(135deg, ${c[0]}, ${c[1]} 55%, ${c[2]})`;
-  btn.style.background = n === "星空營火"
+  btn.style.background = n === "Campfire Sky"
     ? `radial-gradient(1.4px 1.4px at 22% 22%, #fff, transparent),
        radial-gradient(1.4px 1.4px at 68% 16%, #fff, transparent),
        radial-gradient(1px 1px at 44% 34%, #fff, transparent),
        linear-gradient(#0a1030 45%, #7a2a06 78%, #ff8a2b)`
-    : n === "壁爐"
+    : n === "Fireplace"
     ? `radial-gradient(circle at 50% 118%, #ffd08a, #ff7a18 22%, #8f1d00 55%, #240500)`
-    : n === "星空"
+    : n === "Starfield"
     ? `radial-gradient(1.5px 1.5px at 20% 30%, #fff, transparent),
        radial-gradient(1.5px 1.5px at 62% 22%, #fff, transparent),
        radial-gradient(1.5px 1.5px at 78% 58%, #fff, transparent),
@@ -348,8 +351,8 @@ function applyPalette(n) {
 function setOverlays() {
   const v = +document.getElementById("bright").value;
   const scaled = 0.45 + (v / 100) * 0.55;
-  starsCanvas.style.opacity = (current === "星空" || current === "星空營火") ? scaled : 0;
-  fireCanvas.style.opacity = (current === "壁爐" || current === "星空營火") ? scaled : 0;
+  starsCanvas.style.opacity = (current === "Starfield" || current === "Campfire Sky") ? scaled : 0;
+  fireCanvas.style.opacity = (current === "Fireplace" || current === "Campfire Sky") ? scaled : 0;
 }
 const bright = document.getElementById("bright");
 const speed = document.getElementById("speed");
@@ -358,7 +361,7 @@ const savedSpeed = parseFloat(store.get("speed", 0.33));
 speed.value = (savedSpeed >= 0.08 && savedSpeed <= 0.55) ? savedSpeed : 0.33;
 applyPalette(current);
 function applyBright() {
-  const dim = (current === "壁爐" || current === "星空營火") ? 0.5 : 1;
+  const dim = (current === "Fireplace" || current === "Campfire Sky") ? 0.5 : 1;
   stage.style.opacity = (bright.value / 100) * dim;
   setOverlays();
   store.set("bright", bright.value);
@@ -368,22 +371,30 @@ bright.addEventListener("input", applyBright);
 speed.addEventListener("input", () => store.set("speed", speed.value));
 
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-let t = 0, last = performance.now();
+let t = 0, last = performance.now(), lastGlow = 1;
 function frame(now) {
   const dt = Math.min(now - last, 100); last = now;
+  audioTick(dt);
   if (!reduce) t += dt * speed.value * 0.00012;
   const w = innerWidth, h = innerHeight;
   blobs.forEach((b, i) => {
     const x = (Math.sin(t * b.fx + b.phase) * 0.5 + 0.5) * w - w * 0.35;
     const y = (Math.cos(t * b.fy + b.phase * 1.3) * 0.5 + 0.5) * h - h * 0.35;
-    const s = 0.85 + Math.sin(t * 1.7 + i) * 0.2;
+    const s = (0.85 + Math.sin(t * 1.7 + i) * 0.2) * (1 + audio.kick * 0.12 + audio.level * 0.05);
     b.el.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
   });
+  // Gentle brightness swell on the whole wash; written only when it actually
+  // moves, so a still frame costs no extra compositing.
+  const glow = audio.on ? 1 + audio.level * 0.10 + audio.kick * 0.14 : 1;
+  if (Math.abs(glow - lastGlow) > 0.006) {
+    stage.style.filter = glow === 1 ? "" : `brightness(${glow.toFixed(3)})`;
+    lastGlow = glow;
+  }
   const dimmed = stage.style.visibility === "hidden";
   const pace = reduce ? 0 : dt * speed.value;
-  const campfire = current === "星空營火";
-  if (!dimmed && (current === "星空" || campfire)) drawStars(pace, campfire);
-  if (!dimmed && (current === "壁爐" || campfire)) drawFire(pace, campfire);
+  const campfire = current === "Campfire Sky";
+  if (!dimmed && (current === "Starfield" || campfire)) drawStars(pace, campfire);
+  if (!dimmed && (current === "Fireplace" || campfire)) drawFire(pace, campfire);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
@@ -425,10 +436,10 @@ document.getElementById("fs").addEventListener("click", async e => {
     } else if (el.requestFullscreen || el.webkitRequestFullscreen) {
       await (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
     } else {
-      status.textContent = "iPhone 請在 Safari 開啟，按分享 → 加入主畫面，之後從主畫面開就是全螢幕";
+      status.textContent = "On iPhone: open in Safari, Share → Add to Home Screen, then launch from the icon";
     }
   } catch {
-    status.textContent = "iPhone 請在 Safari 開啟，按分享 → 加入主畫面，之後從主畫面開就是全螢幕";
+    status.textContent = "On iPhone: open in Safari, Share → Add to Home Screen, then launch from the icon";
   }
   keepAwake();
 });
@@ -444,14 +455,14 @@ timerBtn.addEventListener("click", e => {
   [stage, starsCanvas, fireCanvas].forEach(el => el.style.visibility = "visible");
   applyBright();
   const m = options[idx];
-  timerBtn.textContent = m ? `定時：${m} 分` : "定時：關";
+  timerBtn.textContent = m ? `Timer: ${m} min` : "Timer: Off";
   timerBtn.setAttribute("aria-pressed", m > 0);
-  status.textContent = m ? `${m} 分鐘後畫面會慢慢變暗` : "";
+  status.textContent = m ? `Screen fades out in ${m} minutes` : "";
   if (m) sleepTimer = setTimeout(() => {
     stage.style.opacity = 0;
     starsCanvas.style.opacity = 0;
     fireCanvas.style.opacity = 0;
-    status.textContent = "已變暗，點一下畫面可恢復";
+    status.textContent = "Faded out — tap the screen to bring it back";
     setTimeout(() => {
       [stage, starsCanvas, fireCanvas].forEach(el => el.style.visibility = "hidden");
     }, 2100);
@@ -463,6 +474,90 @@ stage.addEventListener("click", () => {
     applyBright();
   }
 });
+
+// Music reactivity: the page listens to the room through the microphone.
+// Nothing is recorded and nothing leaves the device - the stream only ever
+// reaches an AnalyserNode, which is not connected to any output.
+const audio = { on: false, level: 0, kick: 0 };
+let micStream = null, actx = null, analyser = null, freq = null;
+let bassAvg = 0, bassMax = 0.02, lastBeat = 0;
+
+function audioTick(dt) {
+  if (!analyser) { audio.level = 0; audio.kick = 0; return; }
+  analyser.getByteFrequencyData(freq);
+
+  const perBin = (actx.sampleRate / 2) / freq.length;
+  const lo = Math.max(1, Math.round(30 / perBin)), hi = Math.round(160 / perBin);
+  let bass = 0;
+  for (let i = lo; i <= hi; i++) bass += freq[i];
+  bass /= (hi - lo + 1) * 255;
+  let whole = 0;
+  for (let i = 1; i < freq.length; i++) whole += freq[i];
+  whole /= (freq.length - 1) * 255;
+
+  // Adaptive gain: normalise against a slowly decaying peak, so a quiet room
+  // at low volume still reads as music without needing a sensitivity knob.
+  bassMax = Math.max(bass, bassMax * 0.9995);
+  const norm = bass / Math.max(bassMax, 0.02);
+  bassAvg += (norm - bassAvg) * Math.min(1, dt * 0.004);
+
+  const now = performance.now();
+  if (norm > bassAvg * 1.35 && norm > 0.18 && now - lastBeat > 130) {
+    lastBeat = now;
+    audio.kick = Math.min(1, audio.kick + (norm - bassAvg * 1.35) * 2.2);
+  }
+  audio.kick *= Math.exp(-dt / 250);
+  audio.level += (Math.min(1, whole * 3.2) - audio.level) * Math.min(1, dt * 0.006);
+}
+
+const micBtn = document.getElementById("mic");
+async function micOn() {
+  micStream = await navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: false, autoGainControl: false, noiseSuppression: false }
+  });
+  actx = new (window.AudioContext || window.webkitAudioContext)();
+  await actx.resume();
+  analyser = actx.createAnalyser();
+  analyser.fftSize = 1024;
+  analyser.smoothingTimeConstant = 0.65;
+  actx.createMediaStreamSource(micStream).connect(analyser);
+  freq = new Uint8Array(analyser.frequencyBinCount);
+  bassAvg = 0; bassMax = 0.02;
+}
+function micOff() {
+  // Both guarded: micOff() is also the error path, and older webkitAudioContext
+  // builds ship without close(), which would otherwise strand the button.
+  try { if (micStream) micStream.getTracks().forEach(t => t.stop()); } catch {}
+  try { if (actx && actx.close) actx.close().catch(() => {}); } catch {}
+  micStream = actx = analyser = freq = null;
+  audio.on = false; audio.level = 0; audio.kick = 0;
+  stage.style.filter = ""; lastGlow = 1;
+  micBtn.textContent = "Music: Off";
+  micBtn.setAttribute("aria-pressed", "false");
+}
+micBtn.addEventListener("click", async e => {
+  e.stopPropagation();
+  if (audio.on) { micOff(); status.textContent = ""; store.set("mic", "0"); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    status.textContent = "This browser cannot listen to the room";
+    return;
+  }
+  micBtn.textContent = "Music: ...";
+  try {
+    await micOn();
+    audio.on = true;
+    micBtn.textContent = "Music: On";
+    micBtn.setAttribute("aria-pressed", "true");
+    status.textContent = "Listening - every mode breathes with the beat";
+    store.set("mic", "1");
+  } catch {
+    micOff();
+    status.textContent = "Microphone blocked. Allow it for this site, then tap again";
+    store.set("mic", "0");
+  }
+});
+// Never auto-started: iOS requires a tap for both getUserMedia and AudioContext.
+if (store.get("mic", "0") === "1") micBtn.textContent = "Music: tap on";
 
 // Offline support
 if ("serviceWorker" in navigator && location.protocol === "https:") {
