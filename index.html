@@ -110,6 +110,7 @@
   <div class="swatches" id="swatches"></div>
   <label><span>Bright</span><input id="bright" type="range" min="10" max="100" value="60"></label>
   <label><span>Speed</span><input id="speed" type="range" min="0.08" max="0.55" step="0.01" value="0.33"></label>
+  <label><span>Beat</span><input id="bpm" type="range" min="0" max="160" step="1" value="0"></label>
   <div class="row">
     <button id="fs">Fullscreen</button>
     <button id="timer">Timer: Off</button>
@@ -480,10 +481,32 @@ stage.addEventListener("click", () => {
 // reaches an AnalyserNode, which is not connected to any output.
 const audio = { on: false, level: 0, kick: 0 };
 let micStream = null, actx = null, analyser = null, freq = null;
-let bassAvg = 0, bassMax = 0.02, lastBeat = 0;
+let bassAvg = 0, bassMax = 0.02, lastBeat = 0, beatPhase = 0;
+
+const bpmSlider = document.getElementById("bpm");
+bpmSlider.value = store.get("bpm", 0);
+function applyBpm() {
+  const bpm = +bpmSlider.value;
+  if (bpm >= 60 && audio.on && analyser) micOff();   // one beat source at a time
+  if (bpm < 60) { beatPhase = 0; audio.kick = 0; }
+  status.textContent = bpm < 60 ? "Beat: off" : `Beat: ${bpm} BPM`;
+  store.set("bpm", bpm);
+}
+bpmSlider.addEventListener("input", applyBpm);
 
 function audioTick(dt) {
-  if (!analyser) { audio.level = 0; audio.kick = 0; return; }
+  if (!analyser) {
+    const bpm = +bpmSlider.value;
+    if (bpm < 60) { audio.on = false; audio.level = 0; audio.kick = 0; return; }
+    // Free-running metronome: no microphone, no audio session, so music playing
+    // on this same phone is never interrupted.
+    audio.on = true;
+    beatPhase += dt / (60000 / bpm);
+    if (beatPhase >= 1) { beatPhase %= 1; audio.kick = 1; }
+    audio.kick *= Math.exp(-dt / 250);
+    audio.level += (0.35 - audio.level) * Math.min(1, dt * 0.006);
+    return;
+  }
   analyser.getByteFrequencyData(freq);
 
   const perBin = (actx.sampleRate / 2) / freq.length;
@@ -535,9 +558,20 @@ function micOff() {
   micBtn.textContent = "Music: Off";
   micBtn.setAttribute("aria-pressed", "false");
 }
+// iPadOS reports itself as a Mac, hence the touch-point check.
+const isIOS = /iP(hone|ad|od)/.test(navigator.platform)
+           || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent));
+
 micBtn.addEventListener("click", async e => {
   e.stopPropagation();
-  if (audio.on) { micOff(); status.textContent = ""; store.set("mic", "0"); return; }
+  if (audio.on && analyser) { micOff(); status.textContent = ""; store.set("mic", "0"); return; }
+  // On iOS, getUserMedia puts the system into record mode and interrupts audio
+  // from other apps - so say so before the permission prompt, once.
+  if (isIOS && store.get("micWarned", "0") !== "1") {
+    store.set("micWarned", "1");
+    status.textContent = "This pauses music playing on this phone. Use the Beat slider instead, or play from another speaker. Tap again to listen anyway";
+    return;
+  }
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     status.textContent = "This browser cannot listen to the room";
     return;
@@ -545,6 +579,7 @@ micBtn.addEventListener("click", async e => {
   micBtn.textContent = "Music: ...";
   try {
     await micOn();
+    bpmSlider.value = 0; store.set("bpm", 0); beatPhase = 0;   // mic wins
     audio.on = true;
     micBtn.textContent = "Music: On";
     micBtn.setAttribute("aria-pressed", "true");

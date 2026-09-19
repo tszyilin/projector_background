@@ -15,22 +15,38 @@ Nine palettes, three of which add animation on top of the drifting colour wash:
 | Campfire Sky | Both at once — stars above, a compact fire below |
 | Amber, Deep Sea, Aurora, Lavender, Sunset, Forest | Drifting colour only |
 
-## Music reactivity
+## Moving to the beat
 
-Tap **Music** in the settings panel — the toggle right next to Fullscreen and Timer — and the whole scene breathes with whatever is playing in the room. It is off until you switch it on, and tapping again switches it back off.
+Two ways to make the scene pulse in time with music. They are mutually exclusive — turning one on switches the other off.
 
-**Every mode reacts**, because the hook sits on the colour wash that all nine palettes share: the drifting blobs swell and brighten on the bass. The three animated modes add their own response on top — flames grow and throw extra embers in Fireplace, stars shimmer with loudness in Starfield, both in Campfire Sky.
+### Beat slider (works with music on the same phone)
 
-It works by listening through the device microphone, so it reacts to any source: Spotify on a speaker, a phone, a record player. There is no Spotify sign-in, and there cannot be — the Spotify SDK's audio is DRM-protected and cannot be analysed, and Spotify's beat-data API has been closed to new apps since late 2024.
+Drag **Beat** in the settings panel to roughly the tempo of what you are playing, and the whole scene pulses at that rate. All the way left is off.
 
-Nothing is recorded and nothing leaves the device: the microphone stream only reaches an `AnalyserNode` that is connected to no output.
+This is the one to use on an iPhone that is also playing the music, because it uses no microphone at all — no permission prompt, no audio session, nothing that can interrupt Spotify.
 
-Notes:
+It is a free-running metronome, not beat detection: it holds the tempo you set, so over several minutes it drifts out of phase with the song and it does not follow tempo changes. The pulse is a slow breath rather than a strobe, so this reads as ambience rather than as a clock that is wrong.
+
+### Microphone (real sync, needs the music to come from elsewhere)
+
+Tap **Music** and the scene follows whatever is actually audible in the room — genuinely in sync, reacting to the bass. Nothing is recorded and nothing leaves the device: the stream only reaches an `AnalyserNode` connected to no output.
+
+**On iOS this will pause music playing on the same device.** `getUserMedia` switches the system audio session into record mode, which interrupts other apps. So use it when the music comes from a separate speaker, phone or laptop; if it is playing on the phone running this page, use the Beat slider instead. Android generally keeps playing. The app warns you once before it ever asks for the microphone.
+
+Other notes:
 
 - Needs HTTPS. The GitHub Pages URL above qualifies; a local `file://` copy does not.
 - On iPhone, a home-screen (standalone) launch needs **iOS 16.4 or newer** for the microphone to work. On older iOS, use it in Safari directly.
 - iOS shows a recording indicator while it listens, and may ask for permission again each time you launch the app. That is the operating system, not this page.
 - The microphone costs battery, which is why it is an explicit toggle and starts off.
+
+### What reacts
+
+**Every mode**, because the hook sits on the colour wash that all nine palettes share: the drifting blobs swell and brighten on each beat. The three animated modes add their own response on top — flames grow and throw extra embers in Fireplace, stars shimmer with loudness in Starfield, both in Campfire Sky.
+
+### Why there is no Spotify sign-in
+
+There cannot be one. Spotify's Web Playback SDK serves DRM-protected audio that a web page is not allowed to analyse, and the API that used to hand out per-beat timestamps has been closed to new apps since late 2024. Listening to the room, or setting the tempo by hand, are the two routes that actually work.
 
 ## Deploying your own copy
 
