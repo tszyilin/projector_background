@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="夜燈">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<title>夜燈氛圍光</title>
+<style>
+  :root {
+    --bg: #000;
+    --panel: rgba(20, 16, 24, 0.72);
+    --text: #f3ece4;
+    --muted: #b9aea3;
+    --line: rgba(255,255,255,0.14);
+    --focus: #ffd9a8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #000; --panel: rgba(20,16,24,0.72); --text: #f3ece4; }
+  }
+  :root[data-theme="dark"] { --bg: #000; --panel: rgba(20,16,24,0.72); --text: #f3ece4; }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+    overflow: hidden;
+    cursor: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body.ui-on { cursor: default; }
+
+  #stage { position: fixed; inset: 0; transition: opacity 1.2s ease; }
+  .blob {
+    position: absolute;
+    width: 70vmax; height: 70vmax;
+    border-radius: 50%;
+    filter: blur(8vmax);
+    opacity: 0.85;
+    transition: background-color 6s ease;
+    will-change: transform;
+  }
+
+  #stars, #fire {
+    position: fixed; inset: 0; width: 100%; height: 100%;
+    opacity: 0; transition: opacity 2s ease; pointer-events: none;
+  }
+
+  #hint {
+    position: fixed; left: 50%; bottom: 8vh; transform: translateX(-50%);
+    font-size: 0.95rem; color: var(--muted);
+    transition: opacity 1.5s ease;
+    pointer-events: none;
+  }
+
+  #panel {
+    position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom));
+    transform: translate(-50%, 20px);
+    width: min(440px, calc(100% - 24px));
+    background: var(--panel);
+    backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    padding: 18px 18px 14px;
+    opacity: 0; pointer-events: none;
+    transition: opacity .35s ease, transform .35s ease;
+  }
+  body.ui-on #panel { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
+
+  .swatches { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+  .swatch {
+    border: 1px solid var(--line); border-radius: 14px;
+    padding: 30px 6px 8px; font: inherit; font-size: 0.85rem;
+    color: #fff; cursor: pointer; text-shadow: 0 1px 3px rgba(0,0,0,.6);
+  }
+  .swatch[aria-pressed="true"] { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  label { display: flex; align-items: center; gap: 12px; font-size: 0.9rem; margin: 10px 0; }
+  label span { width: 3em; flex: none; color: var(--muted); }
+  input[type=range] { flex: 1; accent-color: var(--focus); }
+
+  .row { display: flex; gap: 8px; margin-top: 14px; }
+  .row button {
+    flex: 1; font: inherit; font-size: 0.9rem;
+    background: rgba(255,255,255,0.08); color: var(--text);
+    border: 1px solid var(--line); border-radius: 12px; padding: 10px 6px; cursor: pointer;
+  }
+  .row button[aria-pressed="true"] { background: rgba(255,217,168,0.22); }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  #status { font-size: 0.8rem; color: var(--muted); margin-top: 10px; min-height: 1.2em; text-align: center; }
+
+  @media (prefers-reduced-motion: reduce) { .blob { transition: none; } }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<canvas id="stars" aria-hidden="true"></canvas>
+<canvas id="fire" aria-hidden="true"></canvas>
+<div id="hint">點一下畫面顯示設定</div>
+
+<div id="panel" role="dialog" aria-label="氛圍光設定">
+  <div class="swatches" id="swatches"></div>
+  <label><span>亮度</span><input id="bright" type="range" min="10" max="100" value="60"></label>
+  <label><span>速度</span><input id="speed" type="range" min="0.08" max="0.55" step="0.01" value="0.33"></label>
+  <div class="row">
+    <button id="fs">全螢幕</button>
+    <button id="timer">定時：關</button>
+  </div>
+  <div id="status"></div>
+</div>
+
+<script>
+const palettes = {
+  "星空":     ["#101a4a", "#1d1252", "#0a2f5c", "#2a1440"],
+  "星空營火": ["#0a1030", "#12163a", "#1d0e2a", "#04050f"],
+  "壁爐":     ["#2a0c02", "#120400", "#3a1204", "#070100"],
+  "琥珀暖光": ["#ff8a3d", "#c2410c", "#ffb347", "#7a2e0e"],
+  "深海":     ["#0e4f7a", "#1b2a6b", "#0a7a8a", "#2b1459"],
+  "極光":     ["#1fae7a", "#2461a8", "#7b3fb8", "#0d5c4f"],
+  "薰衣草":   ["#8a6bd1", "#c77dba", "#4b3a8f", "#e0a3c8"],
+  "日落":     ["#ff6f61", "#b8336a", "#ffa45b", "#5a2a6b"],
+  "森林":     ["#2f7a4a", "#6b8f3a", "#1f4d3d", "#a3b55a"]
+};
+const names = Object.keys(palettes);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} }
+};
+
+let current = store.get("palette", names[0]);
+if (!palettes[current]) current = names[0];
+
+const stage = document.getElementById("stage");
+const blobs = [];
+for (let i = 0; i < 4; i++) {
+  const b = document.createElement("div");
+  b.className = "blob";
+  stage.appendChild(b);
+  blobs.push({ el: b, phase: Math.random() * 1000, fx: 0.7 + Math.random() * 0.6, fy: 0.7 + Math.random() * 0.6 });
+}
+
+// Starfield
+const starsCanvas = document.getElementById("stars");
+const sctx = starsCanvas.getContext("2d");
+let stars = [], shooting = null, nextShot = 8000;
+function seedStars() {
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  starsCanvas.width = innerWidth * dpr;
+  starsCanvas.height = innerHeight * dpr;
+  sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const count = Math.round(innerWidth * innerHeight / 5200);
+  stars = Array.from({ length: count }, () => ({
+    x: Math.random() * innerWidth,
+    y: Math.random() * innerHeight,
+    r: Math.random() * 1.3 + 0.35,
+    tw: Math.random() * Math.PI * 2,
+    sp: 0.4 + Math.random() * 1.2,
+    warm: Math.random() < 0.25
+  }));
+}
+seedStars();
+addEventListener("resize", seedStars);
+
+function drawStars(dt, campfire) {
+  sctx.clearRect(0, 0, innerWidth, innerHeight);
+  for (const s of stars) {
+    s.tw += dt * 0.0012 * s.sp;
+    let a = 0.35 + Math.sin(s.tw) * 0.35;
+    if (campfire) a = a * 1.4 * Math.max(0, Math.min(1, (1 - s.y / innerHeight / 0.88)));
+    if (a <= 0.01) continue;
+    sctx.beginPath();
+    sctx.fillStyle = s.warm ? `rgba(255, 228, 196, ${a})` : `rgba(226, 238, 255, ${a})`;
+    sctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    sctx.fill();
+  }
+  nextShot -= dt;
+  if (!shooting && nextShot <= 0) {
+    shooting = { x: Math.random() * innerWidth * 0.7, y: Math.random() * innerHeight * 0.3, life: 0 };
+    nextShot = 12000 + Math.random() * 20000;
+  }
+  if (shooting) {
+    shooting.life += dt;
+    const p = shooting.life / 900;
+    if (p >= 1) { shooting = null; }
+    else {
+      const len = 90, x = shooting.x + p * 260, y = shooting.y + p * 150;
+      const g = sctx.createLinearGradient(x, y, x - len, y - len * 0.58);
+      g.addColorStop(0, `rgba(255,255,255,${1 - p})`);
+      g.addColorStop(1, "rgba(255,255,255,0)");
+      sctx.strokeStyle = g; sctx.lineWidth = 1.6;
+      sctx.beginPath(); sctx.moveTo(x, y); sctx.lineTo(x - len, y - len * 0.58); sctx.stroke();
+    }
+  }
+}
+
+// Fireplace
+const fireCanvas = document.getElementById("fire");
+const fctx = fireCanvas.getContext("2d");
+let embers = [], flames = [], ft = 0;
+const SOFT = 7;                      // draw flames small, blow them up: cheap real blur
+const fbuf = document.createElement("canvas");
+const bctx = fbuf.getContext("2d");
+function seedFire() {
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  fireCanvas.width = innerWidth * dpr;
+  fireCanvas.height = innerHeight * dpr;
+  fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  fbuf.width = Math.max(32, Math.ceil(innerWidth / SOFT));
+  fbuf.height = Math.max(32, Math.ceil(innerHeight / SOFT));
+  bctx.setTransform(1 / SOFT, 0, 0, 1 / SOFT, 0, 0);
+  embers = [];
+  flames = Array.from({ length: 13 }, (_, i) => ({
+    off: (i + 0.5) / 13,
+    phase: Math.random() * Math.PI * 2,
+    sp: 0.9 + Math.random() * 1.0,
+    hf: 0.62 + Math.random() * 0.76,
+    w: 0.11 + Math.random() * 0.13
+  }));
+}
+seedFire();
+addEventListener("resize", seedFire);
+
+function drawFire(dt, compact) {
+  const w = innerWidth, h = innerHeight;
+  ft += dt;
+  fctx.clearRect(0, 0, w, h);
+  bctx.clearRect(0, 0, w, h);
+  bctx.globalCompositeOperation = "lighter";
+
+  const bedY = h * 0.98, bedW = w * (compact ? 0.62 : 0.95), bedX = w / 2;
+  const bed = bctx.createRadialGradient(bedX, bedY, 0, bedX, bedY, bedW);
+  const pulse = 0.72 + Math.sin(ft * 0.0016) * 0.12 + Math.sin(ft * 0.0071) * 0.06;
+  bed.addColorStop(0, `rgba(255, 186, 96, ${(compact ? 0.5 : 0.7) * pulse})`);
+  bed.addColorStop(0.3, `rgba(224, 92, 16, ${(compact ? 0.26 : 0.4) * pulse})`);
+  bed.addColorStop(1, "rgba(120, 20, 0, 0)");
+  bctx.fillStyle = bed;
+  bctx.fillRect(0, 0, w, h);
+
+  for (const f of flames) {
+    const flick = 0.62 + Math.sin(ft * 0.0035 * f.sp + f.phase) * 0.2
+                       + Math.sin(ft * 0.011 * f.sp + f.phase * 2.3) * 0.16;
+    const cx = w * (0.04 + f.off * 0.92) + Math.sin(ft * 0.0013 * f.sp + f.phase) * w * 0.015;
+    const height = h * (0.10 + flick * 0.14) * f.hf * (compact ? 0.8 : 1);
+    const halfW = w * f.w * 0.5 * (0.85 + flick * 0.3);
+    const sway = Math.sin(ft * 0.0021 * f.sp + f.phase * 1.7) * halfW * 0.6
+               + Math.sin(ft * 0.0085 * f.sp + f.phase) * halfW * 0.22;
+    const lean = Math.sin(ft * 0.0016 * f.sp + f.phase * 0.6) * 0.4;
+
+    const layers = [
+      { s: 1.00, top: [255, 124, 28], bot: [176, 40, 0], a: 0.32 },
+      { s: 0.68, top: [255, 178, 62], bot: [228, 84, 10], a: 0.40 },
+      { s: 0.38, top: [255, 242, 205], bot: [255, 174, 66], a: 0.48 }
+    ];
+    for (const L of layers) {
+      const hh = height * L.s, hw = halfW * (0.35 + L.s * 0.65), sy = sway * L.s;
+      const g = bctx.createLinearGradient(cx, bedY, cx + sy, bedY - hh);
+      g.addColorStop(0, `rgba(${L.bot.join(",")}, ${L.a * flick * 0.6})`);
+      g.addColorStop(0.55, `rgba(${L.top.join(",")}, ${L.a * flick})`);
+      g.addColorStop(1, `rgba(${L.top.join(",")}, 0)`);
+      bctx.fillStyle = g;
+      const tipW = hw * 0.42;
+      bctx.beginPath();
+      bctx.moveTo(cx - hw, bedY);
+      bctx.bezierCurveTo(
+        cx - hw * (1.16 + lean * 0.2), bedY - hh * 0.46,
+        cx - hw * 0.92 + sy * 0.5, bedY - hh * 0.86,
+        cx - tipW + sy, bedY - hh
+      );
+      bctx.quadraticCurveTo(cx + sy, bedY - hh * 1.16, cx + tipW + sy, bedY - hh);
+      bctx.bezierCurveTo(
+        cx + hw * 0.92 + sy * 0.5, bedY - hh * 0.86,
+        cx + hw * (1.16 - lean * 0.2), bedY - hh * 0.46,
+        cx + hw, bedY
+      );
+      bctx.quadraticCurveTo(cx, bedY + hh * 0.1, cx - hw, bedY);
+      bctx.closePath();
+      bctx.fill();
+    }
+  }
+
+  fctx.globalCompositeOperation = "source-over";
+  fctx.imageSmoothingEnabled = true;
+  fctx.imageSmoothingQuality = "high";
+  fctx.drawImage(fbuf, 0, 0, fbuf.width, fbuf.height, 0, 0, w, h);
+  fctx.globalCompositeOperation = "lighter";
+
+  if (embers.length < 60 && Math.random() < dt * 0.02) {
+    embers.push({
+      x: w * (0.3 + Math.random() * 0.4), y: bedY - h * 0.05,
+      vx: (Math.random() - 0.5) * 0.02, vy: -(0.03 + Math.random() * 0.05),
+      r: 0.8 + Math.random() * 1.4, life: 0, max: 3000 + Math.random() * 3500
+    });
+  }
+  for (let i = embers.length - 1; i >= 0; i--) {
+    const e = embers[i];
+    e.life += dt;
+    if (e.life > e.max) { embers.splice(i, 1); continue; }
+    e.x += (e.vx + Math.sin(ft * 0.001 + e.life * 0.002) * 0.012) * dt;
+    e.y += e.vy * dt;
+    const a = (1 - e.life / e.max) * 0.85;
+    fctx.beginPath();
+    fctx.fillStyle = `rgba(255, ${140 + Math.round(a * 80)}, 60, ${a})`;
+    fctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+    fctx.fill();
+  }
+  fctx.globalCompositeOperation = "source-over";
+}
+
+const sw = document.getElementById("swatches");
+names.forEach(n => {
+  const btn = document.createElement("button");
+  btn.className = "swatch";
+  btn.textContent = n;
+  const c = palettes[n];
+  const grad = `linear-gradient(135deg, ${c[0]}, ${c[1]} 55%, ${c[2]})`;
+  btn.style.background = n === "星空營火"
+    ? `radial-gradient(1.4px 1.4px at 22% 22%, #fff, transparent),
+       radial-gradient(1.4px 1.4px at 68% 16%, #fff, transparent),
+       radial-gradient(1px 1px at 44% 34%, #fff, transparent),
+       linear-gradient(#0a1030 45%, #7a2a06 78%, #ff8a2b)`
+    : n === "壁爐"
+    ? `radial-gradient(circle at 50% 118%, #ffd08a, #ff7a18 22%, #8f1d00 55%, #240500)`
+    : n === "星空"
+    ? `radial-gradient(1.5px 1.5px at 20% 30%, #fff, transparent),
+       radial-gradient(1.5px 1.5px at 62% 22%, #fff, transparent),
+       radial-gradient(1.5px 1.5px at 78% 58%, #fff, transparent),
+       radial-gradient(1px 1px at 38% 66%, #fff, transparent), ${grad}`
+    : grad;
+  btn.addEventListener("click", e => { e.stopPropagation(); applyPalette(n); });
+  sw.appendChild(btn);
+});
+
+function applyPalette(n) {
+  current = n; store.set("palette", n);
+  blobs.forEach((b, i) => b.el.style.backgroundColor = palettes[n][i % 4]);
+  [...sw.children].forEach(btn => btn.setAttribute("aria-pressed", btn.textContent === n));
+  setOverlays();
+  applyBright();
+}
+function setOverlays() {
+  const v = +document.getElementById("bright").value;
+  const scaled = 0.45 + (v / 100) * 0.55;
+  starsCanvas.style.opacity = (current === "星空" || current === "星空營火") ? scaled : 0;
+  fireCanvas.style.opacity = (current === "壁爐" || current === "星空營火") ? scaled : 0;
+}
+const bright = document.getElementById("bright");
+const speed = document.getElementById("speed");
+bright.value = store.get("bright", 60);
+const savedSpeed = parseFloat(store.get("speed", 0.33));
+speed.value = (savedSpeed >= 0.08 && savedSpeed <= 0.55) ? savedSpeed : 0.33;
+applyPalette(current);
+function applyBright() {
+  const dim = (current === "壁爐" || current === "星空營火") ? 0.5 : 1;
+  stage.style.opacity = (bright.value / 100) * dim;
+  setOverlays();
+  store.set("bright", bright.value);
+}
+applyBright();
+bright.addEventListener("input", applyBright);
+speed.addEventListener("input", () => store.set("speed", speed.value));
+
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.min(now - last, 100); last = now;
+  if (!reduce) t += dt * speed.value * 0.00012;
+  const w = innerWidth, h = innerHeight;
+  blobs.forEach((b, i) => {
+    const x = (Math.sin(t * b.fx + b.phase) * 0.5 + 0.5) * w - w * 0.35;
+    const y = (Math.cos(t * b.fy + b.phase * 1.3) * 0.5 + 0.5) * h - h * 0.35;
+    const s = 0.85 + Math.sin(t * 1.7 + i) * 0.2;
+    b.el.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+  });
+  const dimmed = stage.style.visibility === "hidden";
+  const pace = reduce ? 0 : dt * speed.value;
+  const campfire = current === "星空營火";
+  if (!dimmed && (current === "星空" || campfire)) drawStars(pace, campfire);
+  if (!dimmed && (current === "壁爐" || campfire)) drawFire(pace, campfire);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// Show / hide controls
+const hint = document.getElementById("hint");
+setTimeout(() => hint.style.opacity = 0, 4000);
+let hideTimer;
+function showUI() {
+  document.body.classList.add("ui-on");
+  hint.style.opacity = 0;
+  clearTimeout(hideTimer);
+  hideTimer = setTimeout(() => document.body.classList.remove("ui-on"), 6000);
+}
+document.addEventListener("click", e => {
+  if (e.target.closest("#panel")) { showUI(); return; }
+  document.body.classList.contains("ui-on") ? document.body.classList.remove("ui-on") : showUI();
+});
+document.getElementById("panel").addEventListener("input", showUI);
+
+// Keep screen awake
+const status = document.getElementById("status");
+let lock = null;
+async function keepAwake() {
+  try {
+    if ("wakeLock" in navigator) { lock = await navigator.wakeLock.request("screen"); }
+  } catch {}
+}
+keepAwake();
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") keepAwake(); });
+
+// Fullscreen
+document.getElementById("fs").addEventListener("click", async e => {
+  e.stopPropagation();
+  const el = document.documentElement;
+  try {
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    } else if (el.requestFullscreen || el.webkitRequestFullscreen) {
+      await (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+    } else {
+      status.textContent = "iPhone 請在 Safari 開啟，按分享 → 加入主畫面，之後從主畫面開就是全螢幕";
+    }
+  } catch {
+    status.textContent = "iPhone 請在 Safari 開啟，按分享 → 加入主畫面，之後從主畫面開就是全螢幕";
+  }
+  keepAwake();
+});
+
+// Sleep timer: fades to black
+const timerBtn = document.getElementById("timer");
+const options = [0, 30, 60, 90];
+let idx = 0, sleepTimer;
+timerBtn.addEventListener("click", e => {
+  e.stopPropagation();
+  idx = (idx + 1) % options.length;
+  clearTimeout(sleepTimer);
+  [stage, starsCanvas, fireCanvas].forEach(el => el.style.visibility = "visible");
+  applyBright();
+  const m = options[idx];
+  timerBtn.textContent = m ? `定時：${m} 分` : "定時：關";
+  timerBtn.setAttribute("aria-pressed", m > 0);
+  status.textContent = m ? `${m} 分鐘後畫面會慢慢變暗` : "";
+  if (m) sleepTimer = setTimeout(() => {
+    stage.style.opacity = 0;
+    starsCanvas.style.opacity = 0;
+    fireCanvas.style.opacity = 0;
+    status.textContent = "已變暗，點一下畫面可恢復";
+    setTimeout(() => {
+      [stage, starsCanvas, fireCanvas].forEach(el => el.style.visibility = "hidden");
+    }, 2100);
+  }, m * 60000);
+});
+stage.addEventListener("click", () => {
+  if (stage.style.visibility === "hidden") {
+    [stage, starsCanvas, fireCanvas].forEach(el => el.style.visibility = "visible");
+    applyBright();
+  }
+});
+
+// Offline support
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
+</script>
+</body>
+</html>
